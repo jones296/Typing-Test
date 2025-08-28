@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Typing Speed Test</title>
+  <style>
+    :root{
+      --bg:#0f1226;
+      --card:#171a34;
+      --muted:#8b92b7;
+      --text:#e7e9ff;
+      --accent:#7c9cff;
+      --good:#35d399;
+      --bad:#ff6b6b;
+      --warn:#ffd166;
+      --shadow: 0 10px 30px rgba(0,0,0,.3);
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, 'Helvetica Neue', Arial, 'Apple Color Emoji', 'Segoe UI Emoji';
+      background: radial-gradient(1200px 800px at 80% -10%, #2a2f62 0%, transparent 60%) , var(--bg);
+      color:var(--text);
+      display:grid; place-items:center; padding:24px;
+    }
+    .app{width:min(1000px, 96vw);}
+    .header{
+      display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px;
+    }
+    .title{font-weight:800; letter-spacing:.3px; font-size:clamp(20px, 2vw, 26px)}
+    .controls{display:flex; gap:10px; flex-wrap:wrap}
+    button, select{
+      appearance:none; border:none; border-radius:14px; padding:10px 14px; background:var(--card); color:var(--text);
+      box-shadow:var(--shadow); cursor:pointer; font-weight:600; transition: transform .08s ease, background .2s ease, opacity .2s ease;
+    }
+    button:hover{transform: translateY(-1px)}
+    button:active{transform: translateY(0)}
+    button.primary{background:linear-gradient(135deg, #5a77ff, #8ea3ff)}
+    button.ghost{background:transparent; border:1px solid #2a2f62}
+    .card{background:rgba(23,26,52,.7); border:1px solid #252a55; border-radius:20px; box-shadow:var(--shadow);}
+
+    .stats{display:grid; grid-template-columns:repeat(5, 1fr); gap:10px; margin:10px 0 16px}
+    .stat{padding:14px; text-align:center}
+    .stat h3{margin:0; font-size:12px; color:var(--muted); font-weight:700; letter-spacing:.6px}
+    .stat p{margin:6px 0 0; font-size:clamp(18px, 3vw, 28px); font-weight:800}
+    .stat small{display:block; color:var(--muted)}
+
+    .typing{
+      padding:20px clamp(14px, 3vw, 24px); line-height:2.1; font-size:clamp(16px, 2.2vw, 22px); letter-spacing:.2px; position:relative; overflow:hidden;
+    }
+    .para{ user-select:none; caret-color: transparent;}
+    .char{opacity:.6}
+    .char.correct{color:var(--good); opacity:1}
+    .char.incorrect{color:var(--bad); opacity:1; text-decoration: underline wavy}
+    .char.active{position:relative}
+    .char.active::after{
+      content:""; position:absolute; left:0; bottom:-2px; width:100%; height:2px; background:var(--accent); animation:blink 1s steps(1) infinite;
+    }
+    @keyframes blink{50%{opacity:0}}
+
+    .input-wrap{display:flex; align-items:center; gap:8px; padding:12px 14px; border-top:1px dashed #2b3065}
+    .input-wrap input{
+      width:100%; padding:12px 14px; background:#0d1030; border:1px solid #2a2f62; border-radius:12px; color:var(--text);
+      outline:none; font-size:16px; box-shadow: inset 0 2px 6px rgba(0,0,0,.35);
+    }
+    .hint{color:var(--muted); font-size:12px}
+
+    .footer{display:flex; justify-content:space-between; align-items:center; padding:12px 16px; color:var(--muted); font-size:13px}
+    .footer a{color:var(--accent); text-decoration:none}
+
+    @media (max-width: 720px){
+      .stats{grid-template-columns:repeat(2,1fr)}
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="header">
+      <div class="title">⚡ Typing Speed Test</div>
+      <div class="controls">
+        <select id="duration">
+          <option value="30">30s</option>
+          <option value="60" selected>60s</option>
+          <option value="120">120s</option>
+        </select>
+        <button id="newText" class="ghost" title="Load a new passage">New Text</button>
+        <button id="restart" class="primary" title="Restart the test">Restart</button>
+      </div>
+    </div>
+
+    <div class="stats card">
+      <div class="stat"><h3>WPM</h3><p id="wpm">0</p><small>words/min</small></div>
+      <div class="stat"><h3>Accuracy</h3><p id="accuracy">100%</p><small>correctness</small></div>
+      <div class="stat"><h3>Errors</h3><p id="errors">0</p><small>mismatched keys</small></div>
+      <div class="stat"><h3>Time</h3><p id="time">60</p><small>seconds left</small></div>
+      <div class="stat"><h3>Best</h3><p id="best">—</p><small>personal record</small></div>
+    </div>
+
+    <div class="typing card">
+      <div id="paragraph" class="para" aria-live="polite"></div>
+      <div class="input-wrap">
+        <input id="hiddenInput" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Click here and start typing…" />
+      </div>
+      <div class="footer">
+        <span class="hint">Tip: Press <b>Tab</b> or click the input to focus. <b>Backspace</b> to correct mistakes.</span>
+        <span class="hint">Mode: <span id="modeLabel">Timed</span></span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const paragraphs = [
+      "The quick brown fox jumps over the lazy dog near the river bank on a sunny afternoon.",
+      "Typing is a skill that improves with practice and patience. Keep your fingers relaxed and let rhythm guide you.",
+      "JavaScript powers interactivity on the web, from small animations to complex single page applications.",
+      "Discipline beats motivation. Show up every day, even when progress feels slow, and momentum will carry you forward.",
+      "Great design is as little design as possible. Clarity, simplicity, and purpose make products delightful.",
+      "Music and code share a common thread: structure, repetition, and creativity all working in harmony.",
+      "Curiosity is the engine of growth. Ask questions, test ideas, and enjoy the process of discovery."
+    ];
+
+    const $ = sel => document.querySelector(sel);
+    const paragraphEl = $("#paragraph");
+    const inputEl = $("#hiddenInput");
+    const wpmEl = $("#wpm");
+    const accEl = $("#accuracy");
+    const errEl = $("#errors");
+    const timeEl = $("#time");
+    const bestEl = $("#best");
+    const restartBtn = $("#restart");
+    const newTextBtn = $("#newText");
+    const durationSel = $("#duration");
+
+    let timer = null;
+    let totalTime = parseInt(durationSel.value, 10);
+    let timeLeft = totalTime;
+    let started = false;
+    let ended = false;
+
+    let idx = 0; // current char index
+    let errors = 0;
+    let correct = 0;
+    let totalKeystrokes = 0;
+
+    function loadBest(){
+      const best = parseFloat(localStorage.getItem('typing_best_wpm')||'');
+      bestEl.textContent = isNaN(best) ? '—' : Math.round(best);
+    }
+
+    function setBestIfHigher(wpm){
+      const best = parseFloat(localStorage.getItem('typing_best_wpm')||'0');
+      if(!best || wpm > best){
+        localStorage.setItem('typing_best_wpm', String(wpm));
+      }
+      loadBest();
+    }
+
+    function renderParagraph(text){
+      paragraphEl.innerHTML = '';
+      const frag = document.createDocumentFragment();
+      [...text].forEach((ch, i)=>{
+        const span = document.createElement('span');
+        span.className = 'char' + (i===0?' active':'');
+        span.textContent = ch;
+        frag.appendChild(span);
+      });
+      paragraphEl.appendChild(frag);
+      idx = 0; errors = 0; correct = 0; totalKeystrokes = 0;
+      errEl.textContent = '0';
+      updateAccuracy();
+      updateWPM();
+      paragraphEl.scrollTo({top:0});
+    }
+
+    function pickParagraph(){
+      const pool = paragraphs;
+      return pool[Math.floor(Math.random()*pool.length)];
+    }
+
+    function startTimer(){
+      if(started) return;
+      started = true; ended = false;
+      timeLeft = totalTime;
+      timeEl.textContent = timeLeft;
+      timer = setInterval(()=>{
+        timeLeft -= 1;
+        timeEl.textContent = timeLeft;
+        updateWPM();
+        if(timeLeft <= 0){
+          finish();
+        }
+      }, 1000);
+    }
+
+    function stopTimer(){
+      clearInterval(timer); timer=null; started=false;
+    }
+
+    function finish(){
+      if(ended) return;
+      ended = true; started=false; stopTimer();
+      inputEl.blur();
+      const wpm = calcWPM();
+      setBestIfHigher(wpm);
+      // Visually freeze caret
+      const active = paragraphEl.querySelector('.char.active');
+      if(active) active.classList.remove('active');
+      inputEl.placeholder = `Time up! Final WPM: ${Math.round(wpm)}. Press Restart.`;
+    }
+
+    function reset(loadNew=false){
+      stopTimer();
+      totalTime = parseInt(durationSel.value, 10);
+      timeLeft = totalTime; timeEl.textContent = timeLeft;
+      started=false; ended=false;
+      inputEl.value=''; inputEl.placeholder='Click here and start typing…';
+      renderParagraph(loadNew ? pickParagraph() : paragraphEl.dataset.last || pickParagraph());
+      const first = paragraphEl.querySelector('.char');
+      if(first){ first.classList.add('active'); }
+      inputEl.focus();
+    }
+
+    function updateCaret(){
+      const prev = paragraphEl.querySelector('.char.active');
+      if(prev) prev.classList.remove('active');
+      const next = paragraphEl.children[idx];
+      if(next) next.classList.add('active');
+    }
+
+    function updateAccuracy(){
+      const acc = totalKeystrokes ? Math.max(0, (correct/totalKeystrokes)*100) : 100;
+      accEl.textContent = acc.toFixed(0) + '%';
+    }
+
+    function calcWPM(){
+      const elapsed = (totalTime - timeLeft);
+      const minutes = Math.max(1/60, elapsed/60);
+      const wpm = (correct/5) / minutes; // 5 chars = 1 word
+      return wpm;
+    }
+
+    function updateWPM(){
+      wpmEl.textContent = Math.round(calcWPM());
+    }
+
+    function handleKey(e){
+      if(ended) return;
+      if(!started && e.inputType !== 'deleteContentBackward' && e.data){
+        startTimer();
+      }
+      const text = paragraphEl.textContent;
+      // compare only the last typed char; we rely on input value length
+      const val = inputEl.value;
+
+      // Handle backspace
+      if(e.inputType === 'deleteContentBackward'){
+        if(idx>0){
+          idx--;
+          const span = paragraphEl.children[idx];
+          if(span.classList.contains('incorrect')){ errors = Math.max(0, errors-1); errEl.textContent = errors; }
+          if(span.classList.contains('correct')){ correct = Math.max(0, correct-1); }
+          span.classList.remove('correct','incorrect');
+          totalKeystrokes = Math.max(0, totalKeystrokes-1);
+          updateCaret();
+          updateAccuracy();
+          updateWPM();
+        }
+        return;
+      }
+
+      const ch = val[val.length-1];
+      const expected = text[idx];
+      if(typeof ch === 'string'){
+        totalKeystrokes++;
+        if(ch === expected){
+          paragraphEl.children[idx].classList.add('correct');
+          correct++;
+        }else{
+          paragraphEl.children[idx].classList.add('incorrect');
+          errors++; errEl.textContent = errors;
+        }
+        idx++;
+        updateCaret();
+        updateAccuracy();
+        updateWPM();
+
+        if(idx >= text.length){
+          // Finished early: auto-extend with another paragraph
+          const more = ' ' + pickParagraph();
+          const addFrag = document.createDocumentFragment();
+          [...more].forEach((c)=>{
+            const s = document.createElement('span'); s.className='char'; s.textContent=c; addFrag.appendChild(s);
+          });
+          paragraphEl.appendChild(addFrag);
+        }
+      }
+    }
+
+    // Prevent pasting (would invalidate the test)
+    inputEl.addEventListener('paste', e=> e.preventDefault());
+    inputEl.addEventListener('beforeinput', (e)=>{
+      // Normalize tabs/enters as spaces
+      if(e.inputType === 'insertParagraph'){
+        e.preventDefault();
+        inputEl.value += ' ';
+        const ev = new InputEvent('input', {data:' ', inputType:'insertText'});
+        inputEl.dispatchEvent(ev);
+      }
+    });
+    inputEl.addEventListener('input', handleKey);
+
+    restartBtn.addEventListener('click', ()=> reset(false));
+    newTextBtn.addEventListener('click', ()=>{ paragraphEl.dataset.last = pickParagraph(); reset(false); });
+    durationSel.addEventListener('change', ()=> reset(false));
+
+    // Initialize
+    paragraphEl.dataset.last = pickParagraph();
+    renderParagraph(paragraphEl.dataset.last);
+    loadBest();
+
+    // Auto-focus input on container click for convenience
+    document.querySelector('.typing').addEventListener('click', ()=> inputEl.focus());
+    window.addEventListener('keydown', (e)=>{
+      if(e.key === 'Tab'){
+        e.preventDefault(); inputEl.focus();
+      }
+    });
+  </script>
+</body>
+</html>
